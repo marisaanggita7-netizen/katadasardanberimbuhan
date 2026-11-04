@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Blast Edu: Kata Dasar & Berimbuhan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Retro & Game Styles */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --bg-color: #0f172a; /* Slate 900 */
+            --grid-empty: #1e293b; /* Slate 800 */
+            --grid-filled: #10b981; /* Emerald 500 */
+            --grid-hover: #34d399; /* Emerald 400 */
+            --grid-error: #ef4444; /* Red 500 */
+            --accent: #22c55e;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #f8fafc;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; /* Prevent scrolling */
+            touch-action: none; /* Prevent pinch zoom / pull to refresh */
+        }
+
+        h1, h2, h3, .retro-text {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* 8x8 Game Board */
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 2px;
+            background-color: #334155;
+            padding: 4px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 40vh; /* Responsive sizing based on height */
+            aspect-ratio: 1 / 1;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+        }
+
+        .cell {
+            background-color: var(--grid-empty);
+            border-radius: 4px;
+            transition: background-color 0.1s;
+            cursor: pointer;
+        }
+
+        .cell.filled {
+            background-color: var(--grid-filled);
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .cell.hover-valid { background-color: var(--grid-hover); opacity: 0.8; }
+        .cell.hover-invalid { background-color: var(--grid-error); opacity: 0.8; }
+
+        /* Available Blocks Area */
+        .blocks-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            height: 15vh;
+            margin-top: 10px;
+        }
+
+        .shape-container {
+            display: grid;
+            gap: 2px;
+            cursor: pointer;
+            padding: 5px;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .shape-container.selected {
+            border-color: #fbbf24; /* Amber for selection */
+            transform: scale(1.1);
+            background-color: rgba(251, 191, 36, 0.1);
+        }
+
+        .shape-container.used {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .shape-cell {
+            width: 20px;
+            height: 20px;
+            background-color: var(--grid-filled);
+            border-radius: 2px;
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.3);
+        }
+        
+        .shape-cell.empty {
+            background-color: transparent;
+            box-shadow: none;
+        }
+
+        /* Animations */
+        @keyframes clearLine {
+            0% { background-color: #fff; transform: scale(1.1); }
+            50% { background-color: #fde047; transform: scale(0.9); }
+            100% { background-color: var(--grid-empty); transform: scale(1); }
+        }
+        .cell.clearing {
+            animation: clearLine 0.4s ease-out forwards;
+        }
+
+        @keyframes popup {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .modal-animate {
+            animation: popup 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Utilities */
+        .disabled-board {
+            pointer-events: none;
+            opacity: 0.6;
+            filter: grayscale(0.5);
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen selection:bg-green-500 selection:text-white">
+
+    <!-- Pre-game Setup Modal -->
+    <div id="setup-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-95 backdrop-blur-md">
+        <div class="glass-panel p-8 rounded-2xl shadow-2xl max-w-lg w-full text-center modal-animate border-t-4 border-green-500">
+            <h1 class="text-3xl text-green-400 mb-6 retro-text leading-tight">BLOCK BLAST<br><span class="text-white text-xl">EDU EDITION</span></h1>
+            <p class="mb-6 text-slate-300 text-lg font-bold">Kata Dasar dan Kata Berimbuhan</p>
+            
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-sm font-bold text-slate-400 mb-1">Nama Kelompok A (Kiri)</label>
+                    <input type="text" id="name-a" value="Kelompok A" class="w-full bg-slate-800 border border-slate-600 rounded p-3 text-white focus:outline-none focus:border-green-500 font-mono text-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-400 mb-1">Nama Kelompok B (Kanan)</label>
+                    <input type="text" id="name-b" value="Kelompok B" class="w-full bg-slate-800 border border-slate-600 rounded p-3 text-white focus:outline-none focus:border-green-500 font-mono text-lg">
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="mt-8 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg transition-transform transform hover:scale-105 retro-text text-sm">
+                MULAI PERMAINAN
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game UI -->
+    <div id="game-ui" class="hidden flex-col h-full w-full">
+        <!-- Top Navigation / Stats Bar -->
+        <div class="h-14 bg-slate-800 border-b border-slate-700 flex justify-between items-center px-4 shadow-md z-10 shrink-0">
+            <div class="flex items-center gap-4 w-1/3">
+                <button onclick="toggleAudio()" id="btn-audio" class="p-2 bg-slate-700 rounded hover:bg-slate-600 text-sm flex items-center gap-2">
+                    🔊 <span class="hidden sm:inline">Audio On</span>
+                </button>
+            </div>
+            
+            <div class="text-2xl font-bold text-green-400 w-1/3 text-center retro-text" id="main-timer">
+                00:00
+            </div>
+
+            <div class="flex justify-end w-1/3">
+                <button onclick="toggleFullscreen()" class="p-2 bg-slate-700 rounded hover:bg-slate-600 text-sm flex items-center gap-2">
+                    ⛶ <span class="hidden sm:inline">Fullscreen</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Split Screen Area -->
+        <div class="flex-1 flex flex-row overflow-hidden relative">
+            
+            <!-- TEAM A (Left) -->
+            <div class="flex-1 flex flex-col items-center py-4 px-2 border-r border-slate-700 relative" id="team-a-container">
+                <!-- Header -->
+                <div class="w-full flex justify-between items-center px-4 mb-2">
+                    <div>
+                        <h2 id="display-name-a" class="text-xl font-bold text-emerald-400">Team A</h2>
+                        <span id="badge-a" class="text-xs bg-amber-500 text-amber-950 px-2 py-1 rounded hidden font-bold mt-1">Quiz Completed!</span>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400">SCORE</div>
+                        <div id="score-a" class="text-2xl retro-text text-white">0</div>
+                    </div>
+                </div>
+
+                <!-- Game Board -->
+                <div class="flex-1 flex items-center justify-center w-full">
+                    <div id="board-a" class="game-board" onmouseleave="clearHover('A')"></div>
+                </div>
+
+                <!-- Available Blocks -->
+                <div id="blocks-a" class="blocks-container w-full"></div>
+            </div>
+
+            <!-- TEAM B (Right) -->
+            <div class="flex-1 flex flex-col items-center py-4 px-2 relative" id="team-b-container">
+                <!-- Header -->
+                <div class="w-full flex justify-between items-center px-4 mb-2">
+                    <div>
+                        <h2 id="display-name-b" class="text-xl font-bold text-emerald-400">Team B</h2>
+                        <span id="badge-b" class="text-xs bg-amber-500 text-amber-950 px-2 py-1 rounded hidden font-bold mt-1">Quiz Completed!</span>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400">SCORE</div>
+                        <div id="score-b" class="text-2xl retro-text text-white">0</div>
+                    </div>
+                </div>
+
+                <!-- Game Board -->
+                <div class="flex-1 flex items-center justify-center w-full">
+                    <div id="board-b" class="game-board" onmouseleave="clearHover('B')"></div>
+                </div>
+
+                <!-- Available Blocks -->
+                <div id="blocks-b" class="blocks-container w-full"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Quiz Modal Container -->
+    <div id="quiz-modal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-900 bg-opacity-90 backdrop-blur-sm">
+        <div class="glass-panel p-6 sm:p-8 rounded-2xl shadow-2xl max-w-2xl w-11/12 text-center modal-animate border-t-4 border-amber-400">
+            <div class="text-amber-400 font-bold mb-2 text-sm retro-text" id="quiz-team-name">TEAM A - KUIS MUNCUL!</div>
+            <h3 class="text-xl sm:text-2xl text-white mb-6 font-bold leading-relaxed" id="quiz-question">Pertanyaan...?</h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left" id="quiz-options">
+                <!-- Options injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900 bg-opacity-95 backdrop-blur-md">
+        <div class="glass-panel p-10 rounded-2xl shadow-2xl max-w-lg w-full text-center modal-animate">
+            <h1 class="text-4xl text-white mb-2 retro-text">GAME OVER</h1>
+            <p id="winner-text" class="text-2xl text-emerald-400 mb-8 font-bold"></p>
+            
+            <div class="flex justify-center gap-12 mb-8 text-lg">
+                <div>
+                    <div id="final-name-a" class="text-slate-400">Team A</div>
+                    <div id="final-score-a" class="text-3xl retro-text mt-2">0</div>
+                </div>
+                <div>
+                    <div id="final-name-b" class="text-slate-400">Team B</div>
+                    <div id="final-score-b" class="text-3xl retro-text mt-2">0</div>
+                </div>
+            </div>
+
+            <button onclick="location.reload()" class="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-xl font-bold transition-colors">
+                Main Lagi
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* --- QUESTION POOLS --- */
+        const questionsA = [
+            { q: "Kata dasar dari kata 'menulis' adalah...", opts: ["Tulis", "Nulis", "Menulis", "Lisan"], ans: 0 },
+            { q: "Manakah di bawah ini yang merupakan kata dasar?", opts: ["Berjalan", "Lari", "Melompat", "Pukulan"], ans: 1 },
+            { q: "Imbuhan 'me-' jika digabungkan dengan kata dasar 'sapu' akan menjadi...", opts: ["Mesapu", "Menyapu", "Memsapu", "Mensapu"], ans: 1 },
+            { q: "Kata 'bermain' terdiri dari imbuhan dan kata dasar...", opts: ["be- dan main", "ber- dan main", "berm- dan ain", "ber- dan bermain"], ans: 1 },
+            { q: "Kata berimbuhan 'terbawa' pada kalimat 'Bukumu terbawa olehku' bermakna...", opts: ["Sengaja membawa", "Tidak sengaja membawa", "Alat untuk membawa", "Orang yang membawa"], ans: 1 },
+            { q: "Imbuhan 'pe-an' pada kata 'perasaan' berasal dari kata dasar...", opts: ["Rasa", "Peras", "Asa", "Rasakan"], ans: 0 },
+            { q: "Apa kata dasar dari kata 'menggambar'?", opts: ["Gambar", "Ambar", "Menggambar", "Gamar"], ans: 0 },
+            { q: "Kata 'minuman' menggunakan sufiks (akhiran) yaitu...", opts: ["min-", "mi-", "-an", "-man"], ans: 2 },
+            { q: "Kata 'makanan' terbentuk dari kata dasar 'makan' dan imbuhan...", opts: ["me-", "ber-", "-an", "pe-"], ans: 2 },
+            { q: "Manakah kata berikut yang TIDAK menggunakan imbuhan sama sekali?", opts: ["Membaca", "Sepatu", "Pelari", "Tontonan"], ans: 1 }
+        ];
+
+        const questionsB = [
+            { q: "Kata dasar dari kata 'pekerjaan' adalah...", opts: ["Kerja", "Pekerja", "Kerjaan", "Eja"], ans: 0 },
+            { q: "Jika imbuhan 'di-' digabungkan dengan kata 'pukul', akan menjadi...", opts: ["Dipukul", "Mempukul", "Memukul", "Pemukul"], ans: 0 },
+            { q: "Manakah dari kata berikut yang merupakan kata dasar murni?", opts: ["Menyanyi", "Tidur", "Penyanyi", "Nyanyian"], ans: 1 },
+            { q: "Kata 'melihat' menggunakan prefiks (awalan)...", opts: ["me-", "m-", "mel-", "mem-"], ans: 0 },
+            { q: "Imbuhan 'ber-an' pada kata 'berpelukan' atau 'bersalaman' menunjukkan makna...", opts: ["Alat", "Saling (Resiprokal)", "Sangat/Paling", "Tujuan"], ans: 1 },
+            { q: "Kata 'penggaris' berasal dari kata dasar 'garis' dan mendapat imbuhan...", opts: ["pe-", "peng-", "pen-", "per-"], ans: 1 },
+            { q: "Apa kata dasar dari kata berimbuhan 'menyatukan'?", opts: ["Nyatu", "Satu", "Yatu", "Tukan"], ans: 1 },
+            { q: "Dalam kalimat 'Ibu membelikan adik mainan', kata 'membelikan' berasal dari kata dasar...", opts: ["Beli", "Membeli", "Belikan", "Beli-beli"], ans: 0 },
+            { q: "Akhiran '-kan' pada kata 'lemparkan' sering berfungsi sebagai kata perintah. Apa kata dasarnya?", opts: ["Lem", "Par", "Lempar", "Lemparkan"], ans: 2 },
+            { q: "Manakah kata di bawah ini yang menggunakan konfiks (awalan dan akhiran sekaligus)?", opts: ["Perjalanan", "Mandi", "Berlari", "Tulisan"], ans: 0 }
+        ];
+
+        /* --- SHAPES REPERTOIRE (Polyominoes) --- */
+        const SHAPES = [
+            [[1]], // 1x1
+            [[1,1]], // 1x2
+            [[1],[1]], // 2x1
+            [[1,1,1]], // 1x3
+            [[1],[1],[1]], // 3x1
+            [[1,1,1,1]], // 1x4
+            [[1],[1],[1],[1]], // 4x1
+            [[1,1],[1,1]], // 2x2 square
+            [[1,1,1],[1,1,1],[1,1,1]], // 3x3 square
+            [[1,1],[1,0]], // Small L 1
+            [[1,1],[0,1]], // Small L 2
+            [[1,0],[1,1]], // Small L 3
+            [[0,1],[1,1]], // Small L 4
+            [[1,1,1],[1,0,0],[1,0,0]], // Big L 1
+            [[1,1,1],[0,0,1],[0,0,1]], // Big L 2
+            [[1,0,0],[1,0,0],[1,1,1]], // Big L 3
+            [[0,0,1],[0,0,1],[1,1,1]], // Big L 4
+            [[1,1,1],[0,1,0]], // T shape up
+            [[0,1,0],[1,1,1]], // T shape down
+            [[1,0],[1,1],[1,0]], // T shape left
+            [[0,1],[1,1],[0,1]], // T shape right
+        ];
+
+        /* --- AUDIO SYNTHESIS (Web Audio API) --- */
+        let audioCtx;
+        let isMuted = false;
+        let bgmOscillator = null;
+        let bgmInterval = null;
+        const notes = [220.00, 261.63, 329.63, 392.00, 440.00]; // Pentatonic scale for BGM
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playTone(freq, type, duration, vol=0.1) {
+            if (isMuted || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playSFX(effect) {
+            if (isMuted) return;
+            initAudio();
+            switch(effect) {
+                case 'place':
+                    playTone(440, 'sine', 0.1, 0.2);
+                    setTimeout(() => playTone(554, 'sine', 0.1, 0.2), 50);
+                    break;
+                case 'clear':
+                    [440, 554, 659, 880].forEach((f, i) => {
+                        setTimeout(() => playTone(f, 'square', 0.15, 0.15), i * 50);
+                    });
+                    break;
+                case 'error':
+                    playTone(150, 'sawtooth', 0.3, 0.2);
+                    break;
+                case 'correct':
+                    [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                        setTimeout(() => playTone(f, 'sine', 0.2, 0.2), i * 100);
+                    });
+                    break;
+                case 'wrong':
+                    playTone(200, 'sawtooth', 0.4, 0.2);
+                    setTimeout(() => playTone(150, 'sawtooth', 0.4, 0.2), 200);
+                    break;
+                case 'gameover':
+                    playTone(300, 'square', 0.5, 0.2);
+                    setTimeout(() => playTone(250, 'square', 0.5, 0.2), 300);
+                    setTimeout(() => playTone(200, 'square', 1.0, 0.2), 600);
+                    break;
+            }
+        }
+
+        function startBGM() {
+            if (bgmInterval) clearInterval(bgmInterval);
+            let step = 0;
+            bgmInterval = setInterval(() => {
+                if (!isMuted && audioCtx && audioCtx.state === 'running') {
+                    // Simple retro arpeggio loop
+                    const note = notes[step % notes.length];
+                    playTone(note / 2, 'triangle', 0.2, 0.05);
+                    step++;
+                }
+            }, 300);
+        }
+
+        function toggleAudio() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('btn-audio');
+            btn.innerHTML = isMuted ? '🔇 <span class="hidden sm:inline">Audio Off</span>' : '🔊 <span class="hidden sm:inline">Audio On</span>';
+            if (!isMuted) {
+                initAudio();
+                if(!bgmInterval) startBGM();
+            }
+        }
+
+        function toggleFullscreen() {
+            const elem = document.documentElement;
+            if (!document.fullscreenElement && !document.mozFullScreenElement &&
+                !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen().catch(err => console.log(`Error: ${err.message}`));
+                } else if (elem.msRequestFullscreen) {
+                    elem.msRequestFullscreen();
+                } else if (elem.mozRequestFullScreen) {
+                    elem.mozRequestFullScreen();
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            }
+        }
+
+        /* --- GAME LOGIC --- */
+        class Player {
+            constructor(id, name, questionPool) {
+                this.id = id;
+                this.name = name;
+                this.score = 0;
+                this.grid = Array(8).fill().map(() => Array(8).fill(0));
+                this.questions = [...questionPool];
+                this.qIndex = 0;
+                this.blocks = [];
+                this.selectedBlockIdx = -1;
+                this.isPaused = false;
+                this.isDead = false;
+            }
+        }
+
+        let playerA, playerB;
+        let gameTimer = 0;
+        let timerInterval;
+
+        function startGame() {
+            initAudio();
+            const nameA = document.getElementById('name-a').value || "Kelompok A";
+            const nameB = document.getElementById('name-b').value || "Kelompok B";
+            
+            playerA = new Player('A', nameA, questionsA);
+            playerB = new Player('B', nameB, questionsB);
+
+            document.getElementById('display-name-a').innerText = nameA;
+            document.getElementById('display-name-b').innerText = nameB;
+
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+            document.getElementById('game-ui').classList.add('flex');
+
+            startBGM();
+            timerInterval = setInterval(() => {
+                gameTimer++;
+                const m = Math.floor(gameTimer / 60).toString().padStart(2, '0');
+                const s = (gameTimer % 60).toString().padStart(2, '0');
+                document.getElementById('main-timer').innerText = `${m}:${s}`;
+            }, 1000);
+
+            generateBlocks(playerA);
+            generateBlocks(playerB);
+            
+            renderBoard(playerA);
+            renderBoard(playerB);
+        }
+
+        function generateBlocks(player) {
+            player.blocks = [];
+            for(let i=0; i<3; i++) {
+                const randShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+                player.blocks.push({ shape: randShape, used: false });
+            }
+            player.selectedBlockIdx = -1;
+            renderBlocks(player);
+            checkGameOver(player);
+        }
+
+        function renderBoard(player) {
+            const boardEl = document.getElementById(`board-${player.id.toLowerCase()}`);
+            boardEl.innerHTML = '';
+            
+            for(let r = 0; r < 8; r++) {
+                for(let c = 0; c < 8; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (player.grid[r][c] === 1) cell.classList.add('filled');
+                    
+                    // Interaction events
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    cell.onclick = () => handleCellClick(player, r, c);
+                    cell.onmouseenter = () => handleCellHover(player, r, c);
+                    
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function renderBlocks(player) {
+            const container = document.getElementById(`blocks-${player.id.toLowerCase()}`);
+            container.innerHTML = '';
+            
+            player.blocks.forEach((blockObj, idx) => {
+                const shapeWrapper = document.createElement('div');
+                shapeWrapper.className = `shape-container ${blockObj.used ? 'used' : ''} ${player.selectedBlockIdx === idx ? 'selected' : ''}`;
+                shapeWrapper.onclick = () => selectBlock(player, idx);
+
+                if (!blockObj.used) {
+                    const rows = blockObj.shape.length;
+                    const cols = blockObj.shape[0].length;
+                    shapeWrapper.style.gridTemplateColumns = `repeat(${cols}, 20px)`;
+                    shapeWrapper.style.gridTemplateRows = `repeat(${rows}, 20px)`;
+
+                    for(let r=0; r<rows; r++) {
+                        for(let c=0; c<cols; c++) {
+                            const sc = document.createElement('div');
+                            sc.className = `shape-cell ${blockObj.shape[r][c] ? '' : 'empty'}`;
+                            shapeWrapper.appendChild(sc);
+                        }
+                    }
+                }
+                container.appendChild(shapeWrapper);
+            });
+        }
+
+        function selectBlock(player, idx) {
+            if (player.isPaused || player.isDead || player.blocks[idx].used) return;
+            if (player.selectedBlockIdx === idx) {
+                player.selectedBlockIdx = -1; // Deselect
+            } else {
+                player.selectedBlockIdx = idx;
+            }
+            renderBlocks(player);
+        }
+
+        function canPlace(player, shape, startR, startC) {
+            const rows = shape.length;
+            const cols = shape[0].length;
+            
+            for(let r = 0; r < rows; r++) {
+                for(let c = 0; c < cols; c++) {
+                    if (shape[r][c] === 1) {
+                        const boardR = startR + r;
+                        const boardC = startC + c;
+                        // Out of bounds
+                        if (boardR < 0 || boardR >= 8 || boardC < 0 || boardC >= 8) return false;
+                        // Collision
+                        if (player.grid[boardR][boardC] === 1) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function getHoverCells(player, startR, startC) {
+            if (player.selectedBlockIdx === -1) return null;
+            const shape = player.blocks[player.selectedBlockIdx].shape;
+            const rows = shape.length;
+            const cols = shape[0].length;
+            let cells = [];
+            
+            for(let r = 0; r < rows; r++) {
+                for(let c = 0; c < cols; c++) {
+                    if (shape[r][c] === 1) {
+                        cells.push({r: startR + r, c: startC + c});
+                    }
+                }
+            }
+            return {
+                valid: canPlace(player, shape, startR, startC),
+                cells: cells
+            };
+        }
+
+        function clearHover(teamId) {
+            const cells = document.querySelectorAll(`#board-${teamId.toLowerCase()} .cell`);
+            cells.forEach(c => {
+                c.classList.remove('hover-valid', 'hover-invalid');
+            });
+        }
+
+        function handleCellHover(player, r, c) {
+            if (player.isPaused || player.isDead) return;
+            clearHover(player.id);
+            const hoverData = getHoverCells(player, r, c);
+            if (!hoverData) return;
+            
+            const boardEl = document.getElementById(`board-${player.id.toLowerCase()}`);
+            hoverData.cells.forEach(cellPos => {
+                if (cellPos.r >= 0 && cellPos.r < 8 && cellPos.c >= 0 && cellPos.c < 8) {
+                    const idx = cellPos.r * 8 + cellPos.c;
+                    const cellEl = boardEl.children[idx];
+                    cellEl.classList.add(hoverData.valid ? 'hover-valid' : 'hover-invalid');
+                }
+            });
+        }
+
+        function handleCellClick(player, r, c) {
+            if (player.isPaused || player.isDead) return;
+            if (player.selectedBlockIdx === -1) return;
+
+            const shape = player.blocks[player.selectedBlockIdx].shape;
+            if (canPlace(player, shape, r, c)) {
+                // Place block
+                for(let i=0; i<shape.length; i++) {
+                    for(let j=0; j<shape[0].length; j++) {
+                        if (shape[i][j] === 1) {
+                            player.grid[r + i][c + j] = 1;
+                        }
+                    }
+                }
+                
+                playSFX('place');
+                player.score += 10; // placement points
+                
+                player.blocks[player.selectedBlockIdx].used = true;
+                player.selectedBlockIdx = -1;
+                
+                renderBoard(player);
+                renderBlocks(player);
+                
+                const linesCleared = checkLines(player);
+                
+                // If all 3 blocks used, generate new
+                if (player.blocks.every(b => b.used)) {
+                    generateBlocks(player);
+                } else {
+                    checkGameOver(player);
+                }
+
+                if (linesCleared > 0) {
+                    // Lines checked inside checkLines trigger quiz
+                } else {
+                    updateScore(player);
+                }
+
+            } else {
+                playSFX('error');
+            }
+        }
+
+        function checkLines(player) {
+            let rowsToClear = [];
+            let colsToClear = [];
+
+            // Check rows
+            for(let r=0; r<8; r++) {
+                if (player.grid[r].every(val => val === 1)) {
+                    rowsToClear.push(r);
+                }
+            }
+            // Check cols
+            for(let c=0; c<8; c++) {
+                let colFull = true;
+                for(let r=0; r<8; r++) {
+                    if (player.grid[r][c] === 0) {
+                        colFull = false; break;
+                    }
+                }
+                if (colFull) colsToClear.push(c);
+            }
+
+            const totalLines = rowsToClear.length + colsToClear.length;
+            if (totalLines > 0) {
+                playSFX('clear');
+                player.score += (totalLines * 100);
+                
+                // Animate and clear
+                const boardEl = document.getElementById(`board-${player.id.toLowerCase()}`);
+                
+                rowsToClear.forEach(r => {
+                    for(let c=0; c<8; c++) {
+                        player.grid[r][c] = 0;
+                        boardEl.children[r*8 + c].classList.add('clearing');
+                    }
+                });
+                
+                colsToClear.forEach(c => {
+                    for(let r=0; r<8; r++) {
+                        player.grid[r][c] = 0;
+                        boardEl.children[r*8 + c].classList.add('clearing');
+                    }
+                });
+
+                setTimeout(() => {
+                    renderBoard(player);
+                    updateScore(player);
+                    triggerQuiz(player);
+                }, 400); // match animation duration
+            }
+
+            return totalLines;
+        }
+
+        function updateScore(player) {
+            document.getElementById(`score-${player.id.toLowerCase()}`).innerText = player.score;
+        }
+
+        function checkGameOver(player) {
+            // Can the player place ANY of their remaining blocks anywhere?
+            let canPlay = false;
+            for (let b of player.blocks) {
+                if (!b.used) {
+                    for(let r=0; r<8; r++) {
+                        for(let c=0; c<8; c++) {
+                            if(canPlace(player, b.shape, r, c)) {
+                                canPlay = true;
+                                break;
+                            }
+                        }
+                        if(canPlay) break;
+                    }
+                }
+                if(canPlay) break;
+            }
+
+            if (!canPlay) {
+                player.isDead = true;
+                document.getElementById(`team-${player.id.toLowerCase()}-container`).classList.add('disabled-board');
+                
+                // Check if both dead
+                if (playerA.isDead && playerB.isDead) {
+                    endGame();
+                }
+            }
+        }
+
+        function endGame() {
+            clearInterval(timerInterval);
+            playSFX('gameover');
+            
+            document.getElementById('final-name-a').innerText = playerA.name;
+            document.getElementById('final-score-a').innerText = playerA.score;
+            document.getElementById('final-name-b').innerText = playerB.name;
+            document.getElementById('final-score-b').innerText = playerB.score;
+
+            let winnerText = "SERI!";
+            if (playerA.score > playerB.score) winnerText = `${playerA.name} MENANG!`;
+            if (playerB.score > playerA.score) winnerText = `${playerB.name} MENANG!`;
+            
+            document.getElementById('winner-text').innerText = winnerText;
+            document.getElementById('game-over-modal').classList.remove('hidden');
+            document.getElementById('game-over-modal').classList.add('flex');
+        }
+
+        /* --- QUIZ LOGIC --- */
+        let activeQuizPlayer = null;
+
+        function triggerQuiz(player) {
+            if (player.qIndex < player.questions.length) {
+                player.isPaused = true;
+                activeQuizPlayer = player;
+                document.getElementById(`team-${player.id.toLowerCase()}-container`).classList.add('disabled-board');
+                
+                const qData = player.questions[player.qIndex];
+                
+                document.getElementById('quiz-team-name').innerText = `KUIS UNTUK: ${player.name.toUpperCase()}`;
+                document.getElementById('quiz-question').innerText = qData.q;
+                
+                const optsContainer = document.getElementById('quiz-options');
+                optsContainer.innerHTML = '';
+                
+                const letters = ['A', 'B', 'C', 'D'];
+                qData.opts.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg p-4 text-white text-left transition-colors flex items-start gap-3';
+                    btn.innerHTML = `<span class="font-bold text-amber-400 mt-1">${letters[idx]}.</span> <span class="flex-1">${opt}</span>`;
+                    btn.onclick = () => answerQuiz(idx, qData.ans);
+                    optsContainer.appendChild(btn);
+                });
+
+                document.getElementById('quiz-modal').classList.remove('hidden');
+                document.getElementById('quiz-modal').classList.add('flex');
+            } else {
+                // Questions exhausted
+                document.getElementById(`badge-${player.id.toLowerCase()}`).classList.remove('hidden');
+            }
+        }
+
+        function answerQuiz(selectedIdx, correctIdx) {
+            const player = activeQuizPlayer;
+            const isCorrect = (selectedIdx === correctIdx);
+            
+            if (isCorrect) {
+                playSFX('correct');
+                player.score += 500; // Big bonus
+                updateScore(player);
+                
+                // Show visual feedback on button
+                const btns = document.getElementById('quiz-options').children;
+                btns[selectedIdx].classList.remove('bg-slate-800', 'hover:bg-slate-700');
+                btns[selectedIdx].classList.add('bg-green-600');
+            } else {
+                playSFX('wrong');
+                const btns = document.getElementById('quiz-options').children;
+                btns[selectedIdx].classList.remove('bg-slate-800', 'hover:bg-slate-700');
+                btns[selectedIdx].classList.add('bg-red-600');
+                btns[correctIdx].classList.add('border-green-500', 'border-2'); // Highlight correct
+            }
+
+            // Disable clicks
+            Array.from(document.getElementById('quiz-options').children).forEach(b => b.onclick = null);
+
+            setTimeout(() => {
+                document.getElementById('quiz-modal').classList.add('hidden');
+                document.getElementById('quiz-modal').classList.remove('flex');
+                
+                player.qIndex++;
+                if(player.qIndex >= player.questions.length) {
+                    document.getElementById(`badge-${player.id.toLowerCase()}`).classList.remove('hidden');
+                }
+
+                player.isPaused = false;
+                document.getElementById(`team-${player.id.toLowerCase()}-container`).classList.remove('disabled-board');
+                activeQuizPlayer = null;
+                
+                // re-check game over in case unpausing reveals they have no moves
+                checkGameOver(player);
+            }, 1500); // 1.5s delay to see answer
+        }
+
+    </script>
+</body>
+</html>
